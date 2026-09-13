@@ -235,3 +235,40 @@ def community_groups(community):
     for node, cid in community.items():
         groups.setdefault(cid, []).append(node)
     return groups
+
+
+def connected_components(graph):
+    """求无向图的所有连通分量（BFS 遍历）。
+
+    返回 (node_component, groups)：
+    - node_component: {node_id: component_id}
+    - groups: [[node, ...], ...]，按分量大小降序排列，
+      因此 0 号分量始终是最大连通块。
+
+    直接读取内存邻接表，时间复杂度 O(V + E)。
+    """
+    node_component = {}
+    groups = []
+
+    for start in graph.node_ids():
+        if start in node_component:
+            continue
+        cid = len(groups)
+        members = []
+        queue = deque([start])
+        node_component[start] = cid
+        while queue:
+            cur = queue.popleft()
+            members.append(cur)
+            for nb in graph.adj.get(cur, {}):
+                if nb not in node_component:
+                    node_component[nb] = cid
+                    queue.append(nb)
+        groups.append(members)
+
+    # 按分量大小降序重编号，使编号 0 恒为最大连通块
+    order = sorted(range(len(groups)), key=lambda i: -len(groups[i]))
+    remap = {old: new for new, old in enumerate(order)}
+    groups = [groups[old] for old in order]
+    node_component = {node: remap[cid] for node, cid in node_component.items()}
+    return node_component, groups

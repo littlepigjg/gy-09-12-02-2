@@ -10,7 +10,7 @@
   <div id="app">
     <header class="topbar">
       <h1>社交网络分析服务</h1>
-      <span class="subtitle">图存储 · 最短路径 · 共同好友 · PageRank · 社群发现</span>
+      <span class="subtitle">图存储 · 连通性分析 · 最短路径 · 共同好友 · PageRank · 社群发现</span>
     </header>
 
     <div class="layout">
@@ -27,6 +27,38 @@
             <div class="stat"><span>边</span><b>{{ stats.edges }}</b></div>
             <div class="stat"><span>平均度</span><b>{{ stats.avg_degree }}</b></div>
             <div class="stat"><span>密度</span><b>{{ stats.density }}</b></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>连通性分析</h2>
+          <div class="result" v-if="connectivity && connectivity.total_nodes > 0">
+            <template v-if="connectivity.connected">
+              ✓ 全网连通：{{ connectivity.total_nodes }} 个节点都在同一张网里
+            </template>
+            <template v-else>
+              ✗ 网络断开：碎成 <b>{{ connectivity.component_count }}</b> 块，
+              最大块 {{ connectivity.largest_size }} 人，占
+              {{ (connectivity.largest_ratio * 100).toFixed(1) }}%
+              <span v-if="connectivity.isolated_nodes">（含 {{ connectivity.isolated_nodes }} 个孤立节点）</span>
+            </template>
+          </div>
+          <button class="btn" @click="colorByComponent" :disabled="loading || !connectivity || !connectivity.total_nodes">
+            按连通块着色
+          </button>
+          <ul class="comp-list" v-if="connectivity && connectivity.components.length > 1">
+            <li v-for="c in connectivity.components" :key="c.id"
+                :class="{ active: focusedComponent === c.id }"
+                @click="focusComponent(c.id)">
+              <i :style="{ background: componentColors[c.id] || '#8b96ab' }"></i>
+              <span class="comp-name">第 {{ c.id + 1 }} 块</span>
+              <span class="comp-size">{{ c.size }} 人</span>
+              <span class="comp-bar"><b :style="{ width: (c.ratio * 100) + '%' }"></b></span>
+              <span class="comp-pct">{{ (c.ratio * 100).toFixed(1) }}%</span>
+            </li>
+          </ul>
+          <div class="panel-hint" v-if="connectivity && connectivity.components.length > 1">
+            点击某一块可在图中只显示该块，再次点击恢复
           </div>
         </section>
 

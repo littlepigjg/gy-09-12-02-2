@@ -29,6 +29,9 @@ const app = createApp({
       pagerankList: [],
       communityInfo: null,
       communityColors: {},
+      connectivity: null,
+      componentColors: {},
+      focusedComponent: null,
       hasGraph: false,
     };
   },
@@ -161,14 +164,17 @@ const app = createApp({
     },
 
     async refresh() {
-      const [graphData, communityData, stats] = await Promise.all([
+      const [graphData, communityData, stats, connData] = await Promise.all([
         this.api("/api/graph"),
         this.api("/api/communities"),
         this.api("/api/stats"),
+        this.api("/api/connectivity"),
       ]);
 
       this.stats = stats;
       this.communityInfo = communityData;
+      this.connectivity = connData;
+      this.focusedComponent = null;
       this.hasGraph = graphData.nodes.length > 0;
 
       // 建立社群颜色映射
@@ -179,6 +185,7 @@ const app = createApp({
         colors[c] = PALETTE[i % PALETTE.length];
       });
       this.communityColors = colors;
+      this.computeComponentColors();
 
       // 重建图元素
       this.cy.elements().remove();
@@ -263,10 +270,55 @@ const app = createApp({
       });
     },
 
+    computeComponentColors() {
+      // 为每个连通块分配颜色（按大小降序，0 号最大块取第一个颜色）
+      const colors = {};
+      if (this.connectivity) {
+        this.connectivity.components.forEach((c, i) => {
+          colors[c.id] = PALETTE[i % PALETTE.length];
+        });
+      }
+      this.componentColors = colors;
+    },
+
+    colorByComponent() {
+      // 按连通块给节点着色：彼此断开的块颜色不同，一眼可辨
+      if (!this.connectivity) return;
+      this.computeComponentColors();
+      this.cy.nodes().forEach((node) => {
+        const cid = this.connectivity.node_component[node.id()];
+        node.style("background-color", this.componentColors[cid] || "#8b96ab");
+      });
+    },
+
+    focusComponent(cid) {
+      // 聚焦某个连通块：其余块变暗；再次点击取消聚焦
+      if (!this.connectivity) return;
+      if (this.focusedComponent === cid) {
+        this.focusedComponent = null;
+        this.cy.elements().removeClass("dim highlight");
+        this.cy.fit(undefined, 30);
+        return;
+      }
+      const comp = this.connectivity.components.find((c) => c.id === cid);
+      if (!comp) return;
+      const members = new Set(comp.nodes);
+      const compNodes = this.cy.nodes().filter((n) => members.has(n.id()));
+      if (!compNodes.length) return;
+      this.focusedComponent = cid;
+      this.cy.elements().removeClass("highlight");
+      this.cy.elements().addClass("dim");
+      compNodes.removeClass("dim");
+      // 连通块之间没有边，块内节点的关联边即块内边
+      compNodes.connectedEdges().removeClass("dim");
+      this.cy.fit(compNodes, 60);
+    },
+
     clearHighlight() {
       this.cy.elements().removeClass("highlight dim");
       this.pathResult = "";
       this.commonResult = "";
+      this.focusedComponent = null;
     },
   },
 });

@@ -130,6 +130,35 @@ def api_pagerank():
     )
 
 
+@app.route("/api/connectivity", methods=["GET"])
+def api_connectivity():
+    """连通性分析：是否全图连通、连通块数量、各块大小与占比。"""
+    node_component, groups = algorithms.connected_components(graph)
+    total = graph.node_count()
+    components = [
+        {
+            "id": cid,
+            "size": len(members),
+            "ratio": round(len(members) / total, 4) if total else 0.0,
+            "nodes": sorted(members),
+        }
+        for cid, members in enumerate(groups)
+    ]
+    largest = components[0]["size"] if components else 0
+    return jsonify(
+        {
+            "connected": len(groups) <= 1,
+            "component_count": len(groups),
+            "total_nodes": total,
+            "largest_size": largest,
+            "largest_ratio": round(largest / total, 4) if total else 0.0,
+            "isolated_nodes": sum(1 for g in groups if len(g) == 1),
+            "components": components,
+            "node_component": node_component,
+        }
+    )
+
+
 @app.route("/api/communities", methods=["GET"])
 def api_communities():
     """返回社群划分结果与每个节点所属社群。"""
